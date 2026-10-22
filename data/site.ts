@@ -4,7 +4,7 @@ export const site = {
   role: "Photographer & Videographer",
   location: "Based in Toronto",
   intro:
-    "I photograph quiet moments and the people in them. Every image here comes with the story of how it was made.",
+    "Photographs and films about people, places and the light between them.",
   email: "meg.hortonn@gmail.com",
   instagram: "https://www.instagram.com/meghortonphotos/",
   linkedin: "https://www.linkedin.com/in/megan-horton-4342712a7/",

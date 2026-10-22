@@ -1,5 +1,6 @@
 import Films from "@/components/Films";
 import Gallery from "@/components/Gallery";
+import Header from "@/components/Header";
 import SmoothScroll from "@/components/SmoothScroll";
 import { site } from "@/data/site";
 import { works } from "@/data/photos";
@@ -13,32 +14,17 @@ export default async function Home() {
     <>
       <SmoothScroll />
 
-      <header className="nav">
-        <a href="#top" className="nav-logo" aria-label={site.name}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/monogram.svg" alt="" />
-        </a>
-        <nav>
-          <a href="#work">Photos</a>
-          <a href="#films">Films</a>
-          <a href="#about">About</a>
-          <a href={`mailto:${site.email}`}>Contact</a>
-        </nav>
-      </header>
+      <Header name={site.name} email={site.email} />
 
       <main id="top">
-        <section className="hero">
-          <div className="hero-inner">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="hero-mark" src="/brand/wordmark.svg" alt="" />
-            <h1 className="sr-only">{site.name}</h1>
-            <p className="eyebrow">{site.role}</p>
-            <p className="hero-intro">{site.intro}</p>
-            <p className="hero-meta">{site.location}</p>
-          </div>
-          <a href="#work" className="scroll-cue" aria-label="Scroll to the work">
-            <span />
-          </a>
+        <h1 className="sr-only">
+          {site.name}, {site.role}
+        </h1>
+        <section className="intro">
+          <p className="eyebrow">
+            {site.role} · {site.location}
+          </p>
+          <p className="intro-text">{site.intro}</p>
         </section>
 
         <div id="work">
@@ -53,10 +39,9 @@ export default async function Home() {
 
         <section id="about" className="about">
           <p className="eyebrow">About</p>
-          <h2 className="script">Hi, I&apos;m {site.name.split(" ")[0]}</h2>
+          <h2 className="display">Hi, I&apos;m {site.name.split(" ")[0]}</h2>
           <p>
-            Write a short paragraph here about who she is, what she loves to shoot, and what
-            kind of work she is looking for. Two or three sentences is plenty.
+            I’m a photographer and videographer based in Toronto, drawn to quiet, honest moments and the people in them. I work across portraits, events and short films, and I care about making people feel at ease in front of the camera. I’m looking for work where I can tell real stories with a creative team.
           </p>
           <div className="links">
             <a href={`mailto:${site.email}`}>{site.email}</a>
@@ -68,8 +53,7 @@ export default async function Home() {
       </main>
 
       <footer className="footer">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/monogram.svg" alt="" className="footer-mark" />
+        <span className="footer-mark wordmark">{site.name}</span>
         © {new Date().getFullYear()} {site.name}
       </footer>
     </>

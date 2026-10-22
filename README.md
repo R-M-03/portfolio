@@ -15,16 +15,25 @@ Each photo shows a short theme line under it. Clicking a photo opens it full scr
 There's no limit. Add as many as you like.
 
 1. Export the photos as JPEGs (not HEIC) and copy them into `public/photos/`.
-2. In Terminal, in the portfolio folder, run `npm run photos`.
-   This tidies the file names, shrinks any huge photos so the site stays fast, works out each
-   photo's size, and adds an entry for each new one to the end of `data/photos.ts`.
-3. Open `data/photos.ts` and fill in each new entry's `title`, `theme` and `story`.
-   Each paragraph of the story goes in its own set of quotes, separated by commas.
-4. Delete the placeholder entries you don't want (each one is a block from `{` to `},`),
-   and delete their images from `public/photos/`.
+2. In Terminal, in the portfolio folder, run `npm run photos`. For each new photo it:
+   - reads the camera, lens, settings and year from the photo and fills in its details
+   - removes hidden data like the GPS location, so it's safe to publish
+   - tidies the file name, shrinks it if it's huge, and adds it to the end of `data/photos.ts`
+3. Writing is optional. Title, theme and story start blank. A photo with nothing written just shows
+   on its own, and its story view shows the camera details. Fill in any you like in `data/photos.ts`;
+   each paragraph of a story goes in its own set of quotes, separated by commas.
 
-Photos appear on the site in the same order as in `data/photos.ts`. To reorder, move whole blocks
-up or down. Keep copies of the full-size originals somewhere else, because big files get shrunk.
+Photos appear in the same order as in `data/photos.ts`, in two columns; the first two sit side by
+side at the top. To reorder, move whole blocks (from `{` to `},`) up or down.
+
+Other commands:
+- `npm run photos:tidy` blanks any leftover sample text (titles made from file names, sample
+  themes and stories, made-up camera details). Anything you wrote yourself is left alone.
+- `npm run photos:clean` removes entries whose photo file you've deleted.
+- `npm run photos -- --camera-from "/path/to/originals"` fills in camera details for older photos
+  from her original files, matched by file name.
+
+Keep her full-size originals somewhere else, because big files get shrunk.
 
 ## Add her films
 

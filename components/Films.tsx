@@ -86,7 +86,7 @@ export default function Films({ films }: { films: Film[] }) {
     <>
       <header className="films-intro">
         <p className="eyebrow">Films</p>
-        <h2 className="script">In Motion</h2>
+        <h2 className="display">In Motion</h2>
       </header>
 
       {films.map((f, i) => (
@@ -125,7 +125,7 @@ export default function Films({ films }: { films: Film[] }) {
 
             <div className="film-card">
               <span className="placard-num">FILM {String(i + 1).padStart(2, "0")}</span>
-              <h3 className="script">{f.title}</h3>
+              <h3 className="display">{f.title}</h3>
               <p className="film-theme">{f.theme}</p>
               <p className="film-meta">
                 {[f.category, f.year, f.runtime].filter(Boolean).join("  ·  ")}
@@ -203,7 +203,7 @@ function Theater({ film, origin, onClose }: { film: Film; origin: DOMRect | null
     <p key="meta" className="eyebrow">
       {[film.category, film.year, film.runtime].filter(Boolean).join("  ·  ")}
     </p>,
-    <h2 key="title" className="script">{film.title}</h2>,
+    <h2 key="title" className="display">{film.title}</h2>,
     <p key="theme" className="story-theme">{film.theme}</p>,
     ...film.story.map((p, i) => <p key={`p${i}`} className="theater-p">{p}</p>),
   ];

@@ -4,79 +4,60 @@ import Image from "next/image";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Work } from "@/data/photos";
 import { EASE, flip, lockScroll } from "@/lib/motion";
-import PhotoGrid from "@/components/PhotoGrid";
+
+// The size the browser loads for gallery tiles. The story view shows this same version
+// instantly while the sharper one loads, so opening a photo never flashes blank.
+const TILE_SIZES = "(max-width: 700px) 92vw, 46vw";
+
+// Two balanced columns: each photo goes into whichever column is currently shorter,
+// so the columns end at about the same height and the order still reads top to bottom.
+function splitColumns(works: Work[]) {
+  const cols: number[][] = [[], []];
+  const h = [0, 0];
+  works.forEach((w, i) => {
+    const c = h[0] <= h[1] ? 0 : 1;
+    cols[c].push(i);
+    h[c] += w.height / w.width + 0.14; // + room for the caption
+  });
+  return cols;
+}
 
 export default function Gallery({ works }: { works: Work[] }) {
   const [open, setOpen] = useState<number | null>(null);
-  const [closingView, setClosingView] = useState(false);
   const [origin, setOrigin] = useState<DOMRect | null>(null);
-  const [active, setActive] = useState(0);
-  const [inGallery, setInGallery] = useState(false);
-  const [gridOpen, setGridOpen] = useState(false);
-  const rooms = useRef<(HTMLElement | null)[]>([]);
-  const frames = useRef<(HTMLDivElement | null)[]>([]);
   const tiles = useRef<(HTMLButtonElement | null)[]>([]);
+  const [twoCols, setTwoCols] = useState(true);
 
-  // Scroll-linked motion: every room knows how close it is to the middle of the screen
-  useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let raf = 0;
-
-    const update = () => {
-      raf = 0;
-      const vh = window.innerHeight;
-      let best = 0;
-      let bestDist = Infinity;
-
-      rooms.current.forEach((el, i) => {
-        if (!el) return;
-        const r = el.getBoundingClientRect();
-        const dist = r.top + r.height / 2 - vh / 2;
-        const p = Math.max(-1, Math.min(1, dist / (vh / 2 + r.height / 2)));
-        el.style.setProperty("--p", reduce ? "0" : p.toFixed(4));
-        el.style.setProperty("--e", reduce ? "1" : (1 - Math.abs(p)).toFixed(4));
-        if (Math.abs(dist) < bestDist) {
-          bestDist = Math.abs(dist);
-          best = i;
-        }
-      });
-
-      const root = document.documentElement;
-      root.style.setProperty("--hero", reduce ? "0" : Math.min(1, window.scrollY / (vh * 0.7)).toFixed(4));
-
-      const first = rooms.current[0]?.getBoundingClientRect();
-      const last = rooms.current[rooms.current.length - 1]?.getBoundingClientRect();
-      setInGallery(!!first && !!last && first.top < vh * 0.55 && last.bottom > vh * 0.45);
-      setActive(best);
-    };
-
-    const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(update);
-    };
-    update();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      cancelAnimationFrame(raf);
-    };
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(max-width: 700px)");
+    const set = () => setTwoCols(!mq.matches);
+    set();
+    mq.addEventListener("change", set);
+    return () => mq.removeEventListener("change", set);
   }, []);
 
-  // Open a piece straight from a shared link like yoursite.com/#first-light
+  // Each photo fades up gently the first time it scrolls into view
   useEffect(() => {
-    const slug = window.location.hash.slice(1);
-    const i = works.findIndex((w) => w.slug === slug);
-    if (i >= 0) {
-      centerRoom(i);
-      setOrigin(null);
-      setOpen(i);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      tiles.current.forEach((t) => t?.closest(".work")?.classList.add("in"));
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const io = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          }
+        }),
+      { rootMargin: "0px 0px -8% 0px" }
+    );
+    document.querySelectorAll(".work").forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [twoCols, works.length]);
 
-  const centerRoom = (i: number) => {
-    const el = rooms.current[i];
+  const centerTile = (i: number) => {
+    const el = tiles.current[i];
     if (!el) return;
     const offset = -(window.innerHeight - el.offsetHeight) / 2;
     const lenis = window.__lenis;
@@ -84,26 +65,30 @@ export default function Gallery({ works }: { works: Work[] }) {
     else window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY + offset });
   };
 
-  const openAt = (i: number) => {
-    // drop focus from the clicked tile so no focus ring flashes on it when the view closes
-    (document.activeElement as HTMLElement | null)?.blur();
-    setClosingView(false);
-    setOrigin(frames.current[i]?.getBoundingClientRect() ?? null);
-    setOpen(i);
-    history.replaceState(null, "", `#${works[i].slug}`);
-  };
+  // Open a photo straight from a shared link like yoursite.com/#first-light
+  useEffect(() => {
+    const i = works.findIndex((w) => w.slug === window.location.hash.slice(1));
+    if (i >= 0) {
+      setTimeout(() => {
+        centerTile(i);
+        setOrigin(null);
+        setOpen(i);
+      }, 200);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Opening a story from the grid: it flies out of the grid tile instead
-  const openFromGrid = (i: number) => {
-    setClosingView(false);
+  const openAt = (i: number) => {
+    (document.activeElement as HTMLElement | null)?.blur();
     setOrigin(tiles.current[i]?.getBoundingClientRect() ?? null);
     setOpen(i);
     history.replaceState(null, "", `#${works[i].slug}`);
   };
 
+  // Paging with Previous / Next keeps the page behind in step, so closing lands on the right photo
   const goTo = useCallback(
     (i: number) => {
-      centerRoom(i);
+      centerTile(i);
       setOpen(i);
       history.replaceState(null, "", `#${works[i].slug}`);
     },
@@ -112,124 +97,79 @@ export default function Gallery({ works }: { works: Work[] }) {
 
   const close = useCallback(() => {
     setOpen(null);
-    setClosingView(false);
     history.replaceState(null, "", window.location.pathname);
   }, []);
 
+  const columns = twoCols ? splitColumns(works) : [works.map((_, i) => i)];
+
   return (
     <>
-      <div className="photos-intro">
-        <p className="eyebrow">Photographs</p>
-        <button className="view-all" onClick={() => setGridOpen(true)}>
-          <GridIcon /> View all {works.length} <span aria-hidden>→</span>
-        </button>
-      </div>
-
-      <div className="rooms">
-        {works.map((w, i) => (
-          <section
-            key={w.slug}
-            ref={(el) => {
-              rooms.current[i] = el;
-            }}
-            className="room"
-          >
-            <button
-              className="room-art"
-              onClick={() => openAt(i)}
-              aria-label={`Open ${w.title} and read its story`}
-              style={{ "--ar": w.width / w.height } as React.CSSProperties}
-            >
-              {/* Soft glow in the photo's own colours: a tiny, heavily blurred copy sitting behind it */}
-              <div className="glow" aria-hidden>
-                <Image src={w.src} alt="" fill sizes="64px" quality={40} />
-              </div>
-              <div
-                className={`frame ${open === i ? "is-lifted" : ""}`}
-                ref={(el) => {
-                  frames.current[i] = el;
-                }}
-              >
-                <div className="parallax">
-                  {w.video ? (
-                    <video src={w.video} poster={w.src} muted loop playsInline autoPlay />
-                  ) : (
-                    <Image
-                      src={w.src}
-                      alt={w.title}
-                      width={w.width}
-                      height={w.height}
-                      sizes="(max-width: 900px) 92vw, 70vw"
-                      priority={i < 2}
-                    />
+      <div className={`works ${twoCols ? "two" : "one"}`}>
+        {columns.map((col, c) => (
+          <div key={c} className="works-col">
+            {col.map((i) => {
+              const w = works[i];
+              return (
+                <figure key={w.slug} className="work">
+                  <button
+                    className={`work-frame ${open === i ? "is-lifted" : ""}`}
+                    ref={(el) => {
+                      tiles.current[i] = el;
+                    }}
+                    style={{ aspectRatio: `${w.width} / ${w.height}` }}
+                    onClick={() => openAt(i)}
+                    aria-label={w.title ? `Open ${w.title} and read its story` : "Open this photo"}
+                  >
+                    {/* Soft glow in the photo's own colours, shown on hover */}
+                    <span className="work-glow" aria-hidden>
+                      <Image src={w.src} alt="" fill sizes="64px" quality={40} />
+                    </span>
+                    <span className="work-img">
+                      {w.video ? (
+                        <video src={w.video} poster={w.src} muted loop playsInline autoPlay />
+                      ) : (
+                        <Image
+                          src={w.src}
+                          alt={w.title || w.theme || "Photograph"}
+                          width={w.width}
+                          height={w.height}
+                          sizes={TILE_SIZES}
+                          priority={i < 2}
+                        />
+                      )}
+                    </span>
+                  </button>
+                  {/* Caption only when something's been written: a photo with no title or theme just shows on its own */}
+                  {(w.title || w.theme) && (
+                    <figcaption>
+                      {w.title && (
+                        <button className="work-title display" onClick={() => openAt(i)}>
+                          {w.title}
+                        </button>
+                      )}
+                      {w.theme && <p className="work-theme">{w.theme}</p>}
+                    </figcaption>
                   )}
-                </div>
-              </div>
-            </button>
-
-            <div className="placard">
-              <span className="placard-num">{String(i + 1).padStart(2, "0")}</span>
-              <h3 className="script">{w.title}</h3>
-              <p>{w.theme}</p>
-              <button className="read" onClick={() => openAt(i)}>
-                Read the story <span aria-hidden>→</span>
-              </button>
-            </div>
-          </section>
+                </figure>
+              );
+            })}
+          </div>
         ))}
       </div>
-
-      <button
-        className={`counter ${inGallery && !gridOpen && (open === null || closingView) ? "show" : ""}`}
-        onClick={() => setGridOpen(true)}
-        aria-label="View all photos in a grid"
-        title="View all photos"
-      >
-        <span>{String(active + 1).padStart(2, "0")}</span>
-        <span className="counter-bar">
-          <span style={{ transform: `scaleX(${(active + 1) / works.length})` }} />
-        </span>
-        <span>{String(works.length).padStart(2, "0")}</span>
-        <span className="counter-grid">
-          <GridIcon />
-        </span>
-      </button>
-
-      {gridOpen && (
-        <PhotoGrid
-          works={works}
-          lifted={open}
-          onOpen={openFromGrid}
-          onClose={() => setGridOpen(false)}
-          paused={open !== null}
-          tileRefs={tiles}
-        />
-      )}
 
       {open !== null && (
         <Viewer
           works={works}
           index={open}
           origin={origin}
-          getTarget={(i) => (gridOpen ? tiles.current[i] : frames.current[i])?.getBoundingClientRect() ?? null}
-          getCrop={(i) => (gridOpen ? null : frames.current[i]?.querySelector<HTMLElement>(".parallax") ?? null)}
+          getTarget={(i) => tiles.current[i]?.getBoundingClientRect() ?? null}
+          getCrop={() => null}
           onChange={goTo}
-          onCloseStart={() => setClosingView(true)}
+          onCloseStart={() => {}}
           onClose={close}
         />
       )}
     </>
-  );
-}
-
-function GridIcon() {
-  return (
-    <svg className="grid-icon" viewBox="0 0 14 14" width="13" height="13" aria-hidden>
-      <rect x="0.5" y="0.5" width="5.5" height="5.5" rx="1" />
-      <rect x="8" y="0.5" width="5.5" height="5.5" rx="1" />
-      <rect x="0.5" y="8" width="5.5" height="5.5" rx="1" />
-      <rect x="8" y="8" width="5.5" height="5.5" rx="1" />
-    </svg>
   );
 }
 
@@ -267,7 +207,7 @@ function Viewer({
     const k = viewerHeight / tileHeight;
     return `matrix(${m.a}, 0, 0, ${m.d}, ${m.e * k}, ${m.f * k})`;
   };
-  const media = () => box.current?.querySelector<HTMLElement>("img, video") ?? null;
+  const media = () => box.current?.querySelector<HTMLElement>(".media-main") ?? null;
 
   // The photo grows out of its spot on the wall (or cross-fades when paging).
   // animatedFor makes sure this plays exactly once per photo, even if React re-runs the effect.
@@ -333,13 +273,14 @@ function Viewer({
     return () => document.removeEventListener("keydown", onKey);
   }, [close, prev, next]);
 
+  // Anything left blank (title, theme, story) is simply skipped
   const story = [
-    <p key="meta" className="eyebrow">{w.category} · {w.year}</p>,
-    <h2 key="title" className="script">{w.title}</h2>,
-    <p key="theme" className="story-theme">{w.theme}</p>,
+    <p key="meta" className="eyebrow">{[w.category, w.year].filter(Boolean).join(" · ")}</p>,
+    w.title ? <h2 key="title" className="display">{w.title}</h2> : null,
+    w.theme ? <p key="theme" className="story-theme">{w.theme}</p> : null,
     ...w.story.map((p, i) => <p key={`p${i}`}>{p}</p>),
   ];
-  if (w.details)
+  if (w.details?.length)
     story.push(
       <dl key="details" className="details">
         {w.details.map((d) => (
@@ -352,7 +293,7 @@ function Viewer({
     );
 
   return (
-    <div className={`viewer ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={w.title}>
+    <div className={`viewer ${closing ? "closing" : ""}`} role="dialog" aria-modal="true" aria-label={w.title || "Photograph"}>
       <div className="viewer-bg" onClick={close} />
       <button className="close" onClick={close} aria-label="Close">
         <span />
@@ -376,9 +317,21 @@ function Viewer({
           </div>
           <div className="media-box" ref={box} style={{ "--ar": w.width / w.height } as React.CSSProperties}>
             {w.video ? (
-              <video src={w.video} poster={w.src} controls autoPlay playsInline />
+              <video className="media-main" src={w.video} poster={w.src} controls autoPlay playsInline />
             ) : (
-              <Image src={w.src} alt={w.title} width={w.width} height={w.height} sizes="(max-width: 900px) 92vw, 70vw" priority />
+              <>
+                {/* the gallery's version of this photo is already loaded, so it shows instantly underneath */}
+                <Image className="media-thumb" src={w.src} alt="" fill sizes={TILE_SIZES} aria-hidden />
+                <Image
+                  className="media-main"
+                  src={w.src}
+                  alt={w.title || w.theme || "Photograph"}
+                  width={w.width}
+                  height={w.height}
+                  sizes="(max-width: 900px) 92vw, 70vw"
+                  priority
+                />
+              </>
             )}
           </div>
         </div>
@@ -387,7 +340,7 @@ function Viewer({
       <div className="story">
         {/* Only the text scrolls; the Previous / Next bar below stays in the same place for every photo */}
         <article className="story-body" key={w.slug} data-lenis-prevent>
-          {story.map((el, i) => (
+          {story.filter(Boolean).map((el, i) => (
             <div key={i} className="stagger" style={{ "--i": i } as React.CSSProperties}>
               {el}
             </div>
